@@ -1,0 +1,329 @@
+<?php
+// $Id: filefield_license.module,v 1.6 2010/02/26 12:39:35 quicksketch Exp $
+
+/**
+ * @file
+ * Extend FileField to allow files to have Creative Commons licences attached to them.
+ */
+
+
+function filefield_license_init() {
+  // Get i18n variable array.
+  global $conf;
+ 
+  foreach (filefield_license_licenses() as $name => $info) {
+    $machine = str_replace('-', '_', $name);
+    $conf['i18n_variables'][] = 'filefield_license_'. $machine .'_url';
+    $conf['i18n_variables'][] = 'filefield_license_'. $machine .'_name';
+  }
+}
+
+function filefield_license_menu() {
+  $items = array();
+  $items['admin/settings/filefield-license'] = array(
+    'title' => 'Filefield Creative Commons',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('filefield_license_settings'),
+    'access arguments' => array('administer site configuration'),
+  );
+  return $items;
+}
+
+//----------------------------------------------------------------------
+
+/**
+ * Implementation of hook_widget_settings_alter(). The less docummented hook!
+ * 
+ */
+function filefield_license_widget_settings_alter(&$settings, $op, $widget) {
+  $widget_type = isset($widget['widget_type']) ? $widget['widget_type'] : $widget['type'];
+  
+  
+  if ($op == 'form') {
+    $settings['license'] = array(
+      '#type' => 'select',
+      '#title' => t('Licensing'),
+      '#options' => array(
+        t('Do not collect'),
+        t('Possible'),
+        t('Required'),
+      ),
+      '#default_value' => $widget['license'],
+    );
+  }
+
+  if ($op == 'save') {
+    $settings[] = 'license';
+  }
+}
+
+function filefield_license_form_alter(&$form, &$form_state, $form_id) {
+  if (isset($form['#node']) && isset($form['type']['#value']) && $form_id == $form['type']['#value'] .'_node_form') {
+    $form['#after_build'][] = 'filefield_license_after_build';
+    $form['#submit'][] = 'filefield_license_item_submit';
+  }
+}
+
+function filefield_license_after_build($form, &$form_state) {
+  foreach (element_children($form) as $key) {
+    if ($form[$key]['#field_name']) {
+      $field = content_fields($form[$key]['#field_name'], $form['#node']->type);
+      if ($field['module'] == 'filefield' && $field['widget']['license']) {
+        filefield_license_widget_form_alter($form[$key], $form_state, $field, $form['#node']);
+      }
+    }
+  }
+  return $form;
+}
+
+function filefield_license_widget_form_alter(&$element, &$form_state, $field, $node) {
+  foreach (element_children($element) as $delta) {
+    if (is_numeric($delta)) {
+      filefield_license_item_form_alter($element[$delta], $form_state, $field, $delta, $node);
+    }
+  }
+}
+
+function filefield_license_item_form_alter(&$element, &$form_state, $field, $delta, $node) {
+  
+  if (isset($element['license'])) {
+    return;
+  }
+  
+  ctools_include('dependent');
+  $license_id = $element['#id'] .'-license';
+  $info = isset($form_state['values'][$field['field_name']][$delta]['license']) ? $form_state['values'][$field['field_name']][$delta]['license'] : $node->{$field['field_name']}[$delta]['license'];
+  
+  if (is_array($element['#default_value'])) {
+    $element['#default_value']['license'] = $info;
+  }
+  
+  
+  $element['license'] = array(
+    '#default_value' => $info,
+    '#parents' => array_merge($element['#parents'], array('license')),
+    '#array_parents' => array_merge($element['#array_parents'], array('license')),
+    '#tree' => TRUE,
+    '#id' => $license_id,
+    'name' => array(
+      '#parents' => array_merge($element['#parents'], array('license', 'name')),
+      '#array_parents' => array_merge($element['#array_parents'], array('license', 'name')),
+      '#title' => t('License'),
+      '#name' => $element['#name'] .'[license][name]',
+      '#weight' => -100,
+      '#type' => 'select',
+      '#options' => license_form_options(),
+      '#id' => $license_id .'-name',
+      '#default_value' => $info['name'],
+    ),
+  );
+  
+  foreach (license_load() as $name => $license) {
+    $license->additional_fields = is_string($license->additional_fields) ? unserialize($license->additional_fields) : $license->additional_fields;
+    foreach ($license->additional_fields as $additional => $fapi) {
+      if (!isset($element['license'][$additional])) {
+        $html_id = $license_id .'-'. preg_replace('/[^a-zA-Z0-9-]+/', '-', $additional);
+        
+        $element['license'][$additional] = array_merge($fapi, array(
+          '#parents' => array_merge($element['#parents'], array('license', $additional)),
+          '#array_parents' => array_merge($element['#array_parents'], array('license', $additional)),
+          '#name' => $element['#name'] .'[license]['. check_plain($additional) .']',
+          '#id' => $html_id,
+          '#prefix' => '<div id="'. $html_id .'-wrapper">'. $fapi['#prefix'],
+          '#suffix' => $fapi['#suffix'] .'</div>',
+          '#default_value' => $info[$additional],
+        ));
+        
+      }
+      
+      $element['license'][$additional]['#dependency'][$license_id .'-name'][] = $name;
+    }
+  }
+  
+  foreach (element_children($element['license']) as $key) {
+    $element['license'][$key] = ctools_dependent_process($element['license'][$key], array(), $form_state, $form);
+    form_set_value($element['license'][$key], $info[$key], $form_state);
+  }
+  
+}
+
+function filefield_license_item_submit($form, &$form_state) {
+  
+  
+  foreach (content_fields(NULL, $form['#node']->type) as $field) {
+    if ($field['module'] != 'filefield' || empty($field['widget']['license'])) {
+      continue;
+    }
+    
+    $field_value = &$form_state['values'][$field['field_name']];
+//    zdpm($field_value);
+    
+    foreach ($field_value as $delta => $delta_value) {
+      if (is_numeric($delta) && is_array($delta_value['data'])) {
+        $field_value[$delta]['data']['license'] = $delta_value['license'];
+      }
+    }
+    
+//    if (is_array($data)) {
+//      foreach ($data as $delta => $field_value) {
+//        $form_state['values'][$field['field_name']][$delta]['data']['license'] = $field_value['license'];
+//      }
+//    }
+  }
+  
+  
+}
+
+
+//----------------------------------------------------------------------
+
+function filefield_license_translate($name, $string, $langcode = NULL, $textgroup = 'filefield_license') {
+  // Check for existence of i18nstrings function, then
+  // translate if available.
+  return function_exists('i18nstrings') ?
+    i18nstrings($textgroup . ':' . $name, $string, $langcode) :
+    $string;
+}
+
+
+/**
+ * Returns an array of licenses where the key is the machine name and
+ * the value is a set of information about the license
+ */
+function filefield_license_licenses($wanted = NULL, $reset = TRUE) {
+  static $licenses = array();
+  
+  if (!empty($licenses) && !$reset) {
+    if ($wanted) {
+      return $licenses[$wanted];
+    }
+    return $licenses;
+  }
+  
+  
+  $licenses['by'] = array(
+    'name' => variable_get('filefield_license_by_name', t('Attribution')),
+  );
+  $licenses['by-sa'] = array(
+    'name' => variable_get('filefield_license_by_sa_name', t('Attribution Share Alike')),
+  );
+  $licenses['by-nd'] = array(
+    'name' => variable_get('filefield_license_by_nd_name', t('Attribution No Derivatives')),
+  );
+  $licenses['by-nc'] = array(
+    'name' => variable_get('filefield_license_by_nc_name', t('Attribution Non-Commercial')),
+  );
+  $licenses['by-nc-sa'] = array(
+    'name' => variable_get('filefield_license_by_nc_sa_name', t('Attribution Non-Commercial Share Alike')),
+  );
+  $licenses['by-nc-nd'] = array(
+    'name' => variable_get('filefield_license_by_nc_nd_name', t('Attribution Non-Commercial No Derivatives')),
+  );
+  
+  foreach ($licenses as $name => $info) {
+    $machine = str_replace('-', '_', $name);
+    $licenses[$name]['url'] = check_url(variable_get('filefield_license_'. $machine .'_url', 'http://creativecommons.org/licenses/'. $name .'/2.0/deed'));
+  }
+  
+  if ($wanted) {
+    return $licenses[$wanted];
+  }
+  
+  return $licenses;
+}
+
+function filefield_license_settings() {
+  $form = array();
+  
+  
+  foreach (filefield_license_licenses() as $name => $info) {
+    $machine = str_replace('-', '_', $name);
+    
+    $form[$machine] = array(
+      '#type' => 'fieldset',
+      '#title' => check_plain($name),
+      '#description' => theme('license_button_by_code', $name),
+    );
+    
+    $form[$machine]['filefield_license_'. $machine .'_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Name'),
+      '#default_value' => $info['name'],
+    );
+    
+    $form[$machine]['filefield_license_'. $machine .'_url'] = array(
+      '#type' => 'textfield',
+      '#title' => t('URL'),
+      '#default_value' => $info['url'],
+    );
+    
+  }
+  
+  // @todo make that extensible to allow more licenses (CC versions)
+  
+  
+  return system_settings_form($form);
+}
+
+function filefield_license_other_formatters() {
+  static $formatters = array();
+  
+  if (!empty($formatter)) {
+    return $formatter;
+  }
+  
+  foreach (module_implements('field_formatter_info') as $module) {
+    if ($module == 'filefield_license') {
+      continue;
+    }
+    $hook = $module .'_field_formatter_info';
+    foreach ($hook() as $formatter => $info) {
+      if (in_array('filefield', $info['field types']) || in_array('image', $info['field types'])) {
+        $info['module'] = $module;
+        $formatters[$formatter] = $info;
+      }
+    }
+  }
+//  zdpm(array_keys($formatters));
+  return $formatters;
+}
+
+/**
+ * Implementation of hook_field_formatter_info().
+ */
+function filefield_license_field_formatter_info() {
+  $formatters = array();
+  
+  foreach (filefield_license_other_formatters() as $formatter => $info) {
+    $formatters['licensed__'. $info['module'] .'__'. $formatter] = $info;
+    $formatters['licensed__'. $info['module'] .'__'. $formatter]['label'] = t('Licensed: @formatter_label', array('@formatter_label' => $info['label']));
+  }
+  
+  return $formatters;
+}
+
+
+function filefield_license_theme() {
+  $hooks = array();
+  $pattern = 'filefield_license_formatter_licensed__';
+  
+  foreach (filefield_license_other_formatters() as $formatter => $info) {
+    $hooks[$pattern . $info['module'] .'__'. $formatter] = array(
+      'function' => 'theme_filefield_license_formatter',
+      'arguments' => array('element' => NULL),
+    );
+  }
+
+  return $hooks;
+}
+
+
+function theme_filefield_license_formatter($element) {
+  $hook = explode('__', $element['#formatter']);
+  array_shift($hook);
+  $module = array_shift($hook);
+  $hook = $module .'_formatter_'. implode('__', $hook);
+  
+  
+  return theme($hook, $element) . theme('license_button_by_name', $element['#item']['data']['license']['name'], '80x15', $element['#item']['data']['license']);
+}

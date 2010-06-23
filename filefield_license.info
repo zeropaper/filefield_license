@@ -1,0 +1,5 @@
+name = "Filefield Creative Commons"
+description = "Allows to add a Creative Commons licence to a file"
+core = 6.x
+dependencies[] = filefield
+dependencies[] = license
