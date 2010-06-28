@@ -1,5 +1,6 @@
-name = "Filefield Creative Commons"
+name = "Filefield License"
 description = "Allows to add a Creative Commons licence to a file"
 core = 6.x
 dependencies[] = filefield
 dependencies[] = license
+project status url = http://irata.ch/fserver
