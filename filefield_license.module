@@ -125,6 +125,7 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
           '#id' => $html_id,
           '#prefix' => '<div id="'. $html_id .'-wrapper">'. $fapi['#prefix'],
           '#suffix' => $fapi['#suffix'] .'</div>',
+          '#process' => array('ctools_dependent_process'),
         ));
         
 //        zdpm($name, $license->additional_fields, $additional, $fapi);
@@ -137,12 +138,18 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
         $license_el[$additional]['#value'] = $info[$additional];
       }
       
-//      $license_el[$additional]['#dependency'][$license_id .'-name'][] = $name;
-//      $license_el[$additional]['#process'][] = 'ctools_dependent_process';
-//      $license_el[$additional] = ctools_dependent_process($license_el[$additional]);
+      if (!in_array($name, $license_el[$additional]['#dependency'][$license_id .'-name'])) {
+        $license_el[$additional]['#dependency'][$license_id .'-name'][] = $name;
+      }
     }
   }
   
+  foreach (element_children($license_el) as $key) {
+    if (isset($license_el[$key]['#dependency']) && count($license_el[$key]['#dependency'])) {
+      $pseudo_form = array();
+      $license_el[$key] = ctools_dependent_process($license_el[$key], $info, $form_state, $pseudo_form);
+    }
+  }
   
   $element['data']['license'] = $license_el;
   form_set_value($element['data']['license'], $info, $form_state);
