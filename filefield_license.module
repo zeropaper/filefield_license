@@ -92,21 +92,26 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
   
   
   $license_el = array(
-    '#default_value' => $info,
     '#parents' => array_merge($element['data']['#parents'], array('license')),
     '#array_parents' => array_merge($element['data']['#array_parents'], array('license')),
+    
+    '#default_value' => $info,
     '#tree' => TRUE,
+    
     '#id' => $license_id,
+    
     'name' => array(
       '#parents' => array_merge($element['data']['#parents'], array('license', 'name')),
       '#array_parents' => array_merge($element['data']['#array_parents'], array('license', 'name')),
+      
       '#title' => t('License'),
-      '#name' => $element['#name'] .'[data][license][name]',
       '#weight' => -100,
       '#type' => 'select',
       '#options' => license_form_options(),
+      
       '#id' => $license_id .'-name',
-//      '#default_value' => $info['name'],
+      '#name' => $element['#name'] .'[data][license][name]',
+      
       '#value' => $info['name'],
     ),
   );
@@ -121,19 +126,17 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
         $license_el[$additional] = array_merge($fapi, array(
           '#parents' => array_merge($element['data']['#parents'], array('license', $additional)),
           '#array_parents' => array_merge($element['data']['#array_parents'], array('license', $additional)),
-          '#name' => $element['#name'] .'[data][license]['. check_plain($additional) .']',
-          '#id' => $html_id,
+          
           '#prefix' => '<div id="'. $html_id .'-wrapper">'. $fapi['#prefix'],
           '#suffix' => $fapi['#suffix'] .'</div>',
           '#process' => array('ctools_dependent_process'),
+
+          '#id' => $html_id,
+          '#name' => $element['#name'] .'[data][license]['. check_plain($additional) .']',
         ));
         
-//        zdpm($name, $license->additional_fields, $additional, $fapi);
       }
     
-//      if (!$license_el[$additional]['#default_value'] && $info[$additional]) {
-//        $license_el[$additional]['#default_value'] = $info[$additional];
-//      }
       if (!$license_el[$additional]['#value'] && $info[$additional]) {
         $license_el[$additional]['#value'] = $info[$additional];
       }
@@ -153,7 +156,6 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
   
   $element['data']['license'] = $license_el;
   form_set_value($element['data']['license'], $info, $form_state);
-//  zdpm($element);
 }
 
 function filefield_license_item_submit($form, &$form_state) {
