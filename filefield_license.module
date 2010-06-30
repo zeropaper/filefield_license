@@ -6,18 +6,6 @@
  * Extend FileField to allow files to have Creative Commons licences attached to them.
  */
 
-
-function filefield_license_init() {
-  // Get i18n variable array.
-  global $conf;
- 
-  foreach (filefield_license_licenses() as $name => $info) {
-    $machine = str_replace('-', '_', $name);
-    $conf['i18n_variables'][] = 'filefield_license_'. $machine .'_url';
-    $conf['i18n_variables'][] = 'filefield_license_'. $machine .'_name';
-  }
-}
-
 function filefield_license_menu() {
   $items = array();
   $items['admin/settings/filefield-license'] = array(
@@ -64,6 +52,9 @@ function filefield_license_form_alter(&$form, &$form_state, $form_id) {
   }
 }
 
+
+
+
 function filefield_license_after_build($form, &$form_state) {
   foreach (element_children($form) as $key) {
     if ($form[$key]['#field_name']) {
@@ -77,6 +68,7 @@ function filefield_license_after_build($form, &$form_state) {
 }
 
 function filefield_license_widget_form_alter(&$element, &$form_state, $field, $node) {
+  
   foreach (element_children($element) as $delta) {
     if (is_numeric($delta)) {
       filefield_license_item_form_alter($element[$delta], $form_state, $field, $delta, $node);
@@ -91,60 +83,70 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
   }
   
   ctools_include('dependent');
-  $license_id = $element['#id'] .'-license';
-  $info = isset($form_state['values'][$field['field_name']][$delta]['license']) ? $form_state['values'][$field['field_name']][$delta]['license'] : $node->{$field['field_name']}[$delta]['license'];
+  $license_id = $element['#id'] .'-data-license';
+  $info = isset($form_state['values'][$field['field_name']][$delta]['data']['license']) ? $form_state['values'][$field['field_name']][$delta]['data']['license'] : $node->{$field['field_name']}[$delta]['data']['license'];
   
-  if (is_array($element['#default_value'])) {
-    $element['#default_value']['license'] = $info;
+  if (is_array($element['#default_value']['data'])) {
+    $element['#default_value']['data']['license'] = $info;
   }
   
   
-  $element['license'] = array(
+  $license_el = array(
     '#default_value' => $info,
-    '#parents' => array_merge($element['#parents'], array('license')),
-    '#array_parents' => array_merge($element['#array_parents'], array('license')),
+    '#parents' => array_merge($element['data']['#parents'], array('license')),
+    '#array_parents' => array_merge($element['data']['#array_parents'], array('license')),
     '#tree' => TRUE,
     '#id' => $license_id,
     'name' => array(
-      '#parents' => array_merge($element['#parents'], array('license', 'name')),
-      '#array_parents' => array_merge($element['#array_parents'], array('license', 'name')),
+      '#parents' => array_merge($element['data']['#parents'], array('license', 'name')),
+      '#array_parents' => array_merge($element['data']['#array_parents'], array('license', 'name')),
       '#title' => t('License'),
-      '#name' => $element['#name'] .'[license][name]',
+      '#name' => $element['#name'] .'[data][license][name]',
       '#weight' => -100,
       '#type' => 'select',
       '#options' => license_form_options(),
       '#id' => $license_id .'-name',
-      '#default_value' => $info['name'],
+//      '#default_value' => $info['name'],
+      '#value' => $info['name'],
     ),
   );
   
   foreach (license_load() as $name => $license) {
     $license->additional_fields = is_string($license->additional_fields) ? unserialize($license->additional_fields) : $license->additional_fields;
     foreach ($license->additional_fields as $additional => $fapi) {
-      if (!isset($element['license'][$additional])) {
+      if (!isset($license_el[$additional])) {
+        
         $html_id = $license_id .'-'. preg_replace('/[^a-zA-Z0-9-]+/', '-', $additional);
         
-        $element['license'][$additional] = array_merge($fapi, array(
-          '#parents' => array_merge($element['#parents'], array('license', $additional)),
-          '#array_parents' => array_merge($element['#array_parents'], array('license', $additional)),
-          '#name' => $element['#name'] .'[license]['. check_plain($additional) .']',
+        $license_el[$additional] = array_merge($fapi, array(
+          '#parents' => array_merge($element['data']['#parents'], array('license', $additional)),
+          '#array_parents' => array_merge($element['data']['#array_parents'], array('license', $additional)),
+          '#name' => $element['#name'] .'[data][license]['. check_plain($additional) .']',
           '#id' => $html_id,
           '#prefix' => '<div id="'. $html_id .'-wrapper">'. $fapi['#prefix'],
           '#suffix' => $fapi['#suffix'] .'</div>',
-          '#default_value' => $info[$additional],
         ));
         
+//        zdpm($name, $license->additional_fields, $additional, $fapi);
+      }
+    
+//      if (!$license_el[$additional]['#default_value'] && $info[$additional]) {
+//        $license_el[$additional]['#default_value'] = $info[$additional];
+//      }
+      if (!$license_el[$additional]['#value'] && $info[$additional]) {
+        $license_el[$additional]['#value'] = $info[$additional];
       }
       
-      $element['license'][$additional]['#dependency'][$license_id .'-name'][] = $name;
+//      $license_el[$additional]['#dependency'][$license_id .'-name'][] = $name;
+//      $license_el[$additional]['#process'][] = 'ctools_dependent_process';
+//      $license_el[$additional] = ctools_dependent_process($license_el[$additional]);
     }
   }
   
-  foreach (element_children($element['license']) as $key) {
-    $element['license'][$key] = ctools_dependent_process($element['license'][$key], array(), $form_state, $form);
-    form_set_value($element['license'][$key], $info[$key], $form_state);
-  }
   
+  $element['data']['license'] = $license_el;
+  form_set_value($element['data']['license'], $info, $form_state);
+//  zdpm($element);
 }
 
 function filefield_license_item_submit($form, &$form_state) {
@@ -156,7 +158,6 @@ function filefield_license_item_submit($form, &$form_state) {
     }
     
     $field_value = &$form_state['values'][$field['field_name']];
-//    zdpm($field_value);
     
     foreach ($field_value as $delta => $delta_value) {
       if (is_numeric($delta) && is_array($delta_value['data'])) {
@@ -164,11 +165,6 @@ function filefield_license_item_submit($form, &$form_state) {
       }
     }
     
-//    if (is_array($data)) {
-//      foreach ($data as $delta => $field_value) {
-//        $form_state['values'][$field['field_name']][$delta]['data']['license'] = $field_value['license'];
-//      }
-//    }
   }
   
   
@@ -176,94 +172,6 @@ function filefield_license_item_submit($form, &$form_state) {
 
 
 //----------------------------------------------------------------------
-
-function filefield_license_translate($name, $string, $langcode = NULL, $textgroup = 'filefield_license') {
-  // Check for existence of i18nstrings function, then
-  // translate if available.
-  return function_exists('i18nstrings') ?
-    i18nstrings($textgroup . ':' . $name, $string, $langcode) :
-    $string;
-}
-
-
-/**
- * Returns an array of licenses where the key is the machine name and
- * the value is a set of information about the license
- */
-function filefield_license_licenses($wanted = NULL, $reset = TRUE) {
-  static $licenses = array();
-  
-  if (!empty($licenses) && !$reset) {
-    if ($wanted) {
-      return $licenses[$wanted];
-    }
-    return $licenses;
-  }
-  
-  
-  $licenses['by'] = array(
-    'name' => variable_get('filefield_license_by_name', t('Attribution')),
-  );
-  $licenses['by-sa'] = array(
-    'name' => variable_get('filefield_license_by_sa_name', t('Attribution Share Alike')),
-  );
-  $licenses['by-nd'] = array(
-    'name' => variable_get('filefield_license_by_nd_name', t('Attribution No Derivatives')),
-  );
-  $licenses['by-nc'] = array(
-    'name' => variable_get('filefield_license_by_nc_name', t('Attribution Non-Commercial')),
-  );
-  $licenses['by-nc-sa'] = array(
-    'name' => variable_get('filefield_license_by_nc_sa_name', t('Attribution Non-Commercial Share Alike')),
-  );
-  $licenses['by-nc-nd'] = array(
-    'name' => variable_get('filefield_license_by_nc_nd_name', t('Attribution Non-Commercial No Derivatives')),
-  );
-  
-  foreach ($licenses as $name => $info) {
-    $machine = str_replace('-', '_', $name);
-    $licenses[$name]['url'] = check_url(variable_get('filefield_license_'. $machine .'_url', 'http://creativecommons.org/licenses/'. $name .'/2.0/deed'));
-  }
-  
-  if ($wanted) {
-    return $licenses[$wanted];
-  }
-  
-  return $licenses;
-}
-
-function filefield_license_settings() {
-  $form = array();
-  
-  
-  foreach (filefield_license_licenses() as $name => $info) {
-    $machine = str_replace('-', '_', $name);
-    
-    $form[$machine] = array(
-      '#type' => 'fieldset',
-      '#title' => check_plain($name),
-      '#description' => theme('license_button_by_code', $name),
-    );
-    
-    $form[$machine]['filefield_license_'. $machine .'_name'] = array(
-      '#type' => 'textfield',
-      '#title' => t('Name'),
-      '#default_value' => $info['name'],
-    );
-    
-    $form[$machine]['filefield_license_'. $machine .'_url'] = array(
-      '#type' => 'textfield',
-      '#title' => t('URL'),
-      '#default_value' => $info['url'],
-    );
-    
-  }
-  
-  // @todo make that extensible to allow more licenses (CC versions)
-  
-  
-  return system_settings_form($form);
-}
 
 function filefield_license_other_formatters() {
   static $formatters = array();
@@ -284,7 +192,6 @@ function filefield_license_other_formatters() {
       }
     }
   }
-//  zdpm(array_keys($formatters));
   return $formatters;
 }
 
