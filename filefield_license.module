@@ -1,5 +1,5 @@
 <?php
-// $Id: filefield_license.module,v 1.6 2010/02/26 12:39:35 quicksketch Exp $
+// $Id: $
 
 /**
  * @file
@@ -118,6 +118,9 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
   
   foreach (license_load() as $name => $license) {
     $license->additional_fields = is_string($license->additional_fields) ? unserialize($license->additional_fields) : $license->additional_fields;
+    if (!is_array($license->additional_fields)) {
+      continue;
+    }
     foreach ($license->additional_fields as $additional => $fapi) {
       if (!isset($license_el[$additional])) {
         
@@ -141,6 +144,7 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
         $license_el[$additional]['#value'] = $info[$additional];
       }
       
+      $license_el[$additional]['#dependency'][$license_id .'-name'] = is_array($license_el[$additional]['#dependency'][$license_id .'-name']) ? $license_el[$additional]['#dependency'][$license_id .'-name'] : array();
       if (!in_array($name, $license_el[$additional]['#dependency'][$license_id .'-name'])) {
         $license_el[$additional]['#dependency'][$license_id .'-name'][] = $name;
       }
@@ -170,7 +174,7 @@ function filefield_license_item_submit($form, &$form_state) {
     
     foreach ($field_value as $delta => $delta_value) {
       if (is_numeric($delta) && is_array($delta_value['data'])) {
-        $field_value[$delta]['data']['license'] = $delta_value['license'];
+        $field_value[$delta]['data']['license'] = $delta_value['data']['license'];
       }
     }
     
@@ -238,8 +242,11 @@ function theme_filefield_license_formatter($element) {
   $hook = explode('__', $element['#formatter']);
   array_shift($hook);
   $module = array_shift($hook);
-  $hook = $module .'_formatter_'. implode('__', $hook);
-  
-  
-  return theme($hook, $element) . theme('license_button_by_name', $element['#item']['data']['license']['name'], '80x15', $element['#item']['data']['license']);
+  $formatter = $module .'_formatter_'. implode('__', $hook);
+  $element['#formatter'] = implode('__', $hook);
+//  dpm(array(
+//    'module' => $module,
+//    'formatter' => $formatter,
+//  ));
+  return theme($formatter, $element) . theme('license_button_by_name', $element['#item']['data']['license']['name'], '80x15', $element['#item']['data']['license']);
 }
