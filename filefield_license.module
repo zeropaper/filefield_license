@@ -9,7 +9,7 @@
 function filefield_license_menu() {
   $items = array();
   $items['admin/settings/filefield-license'] = array(
-    'title' => 'Filefield Creative Commons',
+    'title' => 'Filefield licenses',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('filefield_license_settings'),
     'access arguments' => array('administer site configuration'),
