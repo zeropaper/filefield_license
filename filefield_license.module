@@ -244,9 +244,11 @@ function theme_filefield_license_formatter($element) {
   $module = array_shift($hook);
   $formatter = $module .'_formatter_'. implode('__', $hook);
   $element['#formatter'] = implode('__', $hook);
+  $license = $element['#item']['data']['license'];
+  $license_button = theme('license_button_by_name', $license['name'], '80x15', $license);
 //  dpm(array(
 //    'module' => $module,
 //    'formatter' => $formatter,
 //  ));
-  return theme($formatter, $element) . theme('license_button_by_name', $element['#item']['data']['license']['name'], '80x15', $element['#item']['data']['license']);
+  return '<span class="licensed-file">'. theme($formatter, $element) . $license_button .'</span>';
 }
