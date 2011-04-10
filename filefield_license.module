@@ -36,7 +36,7 @@ function filefield_license_widget_settings_alter(&$settings, $op, $widget) {
         t('Possible'),
         t('Required'),
       ),
-      '#default_value' => $widget['license'],
+      '#default_value' => (empty($widget['license']) ? 0 : $widget['license']),
     );
   }
 
@@ -57,7 +57,7 @@ function filefield_license_form_alter(&$form, &$form_state, $form_id) {
 
 function filefield_license_after_build($form, &$form_state) {
   foreach (element_children($form) as $key) {
-    if ($form[$key]['#field_name']) {
+    if (isset($form[$key]) && !empty($form[$key]['#field_name'])) {
       $field = content_fields($form[$key]['#field_name'], $form['#node']->type);
       if ($field['module'] == 'filefield' && $field['widget']['license']) {
         filefield_license_widget_form_alter($form[$key], $form_state, $field, $form['#node']);
@@ -117,6 +117,7 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
   );
   
   foreach (license_load() as $name => $license) {
+    $license->additional_fields = !empty($license->additional_fields) ? $license->additional_fields : '';
     $license->additional_fields = is_string($license->additional_fields) ? unserialize($license->additional_fields) : $license->additional_fields;
     if (!is_array($license->additional_fields)) {
       continue;
@@ -130,8 +131,8 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
           '#parents' => array_merge($element['data']['#parents'], array('license', $additional)),
           '#array_parents' => array_merge($element['data']['#array_parents'], array('license', $additional)),
           
-          '#prefix' => '<div id="'. $html_id .'-wrapper">'. $fapi['#prefix'],
-          '#suffix' => $fapi['#suffix'] .'</div>',
+          '#prefix' => '<div id="'. $html_id .'-wrapper">'. (!empty($fapi['#prefix']) ? $fapi['#prefix'] : ''),
+          '#suffix' => (!empty($fapi['#suffix']) ? $fapi['#suffix'] : '') .'</div>',
           '#process' => array('ctools_dependent_process'),
 
           '#id' => $html_id,
@@ -140,10 +141,11 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
         
       }
     
-      if (!$license_el[$additional]['#value'] && $info[$additional]) {
+      if (empty($license_el[$additional]['#value']) && $info[$additional]) {
         $license_el[$additional]['#value'] = $info[$additional];
       }
       
+      $license_el[$additional]['#dependency'] = !empty($license_el[$additional]['#dependency']) ? $license_el[$additional]['#dependency'] : array();
       $license_el[$additional]['#dependency'][$license_id .'-name'] = is_array($license_el[$additional]['#dependency'][$license_id .'-name']) ? $license_el[$additional]['#dependency'][$license_id .'-name'] : array();
       if (!in_array($name, $license_el[$additional]['#dependency'][$license_id .'-name'])) {
         $license_el[$additional]['#dependency'][$license_id .'-name'][] = $name;
