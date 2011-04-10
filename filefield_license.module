@@ -146,7 +146,7 @@ function filefield_license_item_form_alter(&$element, &$form_state, $field, $del
       }
       
       $license_el[$additional]['#dependency'] = !empty($license_el[$additional]['#dependency']) ? $license_el[$additional]['#dependency'] : array();
-      $license_el[$additional]['#dependency'][$license_id .'-name'] = is_array($license_el[$additional]['#dependency'][$license_id .'-name']) ? $license_el[$additional]['#dependency'][$license_id .'-name'] : array();
+      $license_el[$additional]['#dependency'][$license_id .'-name'] = !empty($license_el[$additional]['#dependency'][$license_id .'-name']) ? $license_el[$additional]['#dependency'][$license_id .'-name'] : array();
       if (!in_array($name, $license_el[$additional]['#dependency'][$license_id .'-name'])) {
         $license_el[$additional]['#dependency'][$license_id .'-name'][] = $name;
       }
